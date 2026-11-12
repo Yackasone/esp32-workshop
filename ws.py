@@ -117,7 +117,9 @@ def socket_of(path):
     """The physical USB socket in a by-path name. Drivers name the same socket differently
     (CP2102: ...usb-0:4:1.0-port0, CH343/native USB: ...usb-0:4:1.0), so board numbers key on
     ...usb-0:4 and stay with the socket whichever board is plugged into it."""
-    return re.sub(r":\d+\.\d+(-port\d+)?$", "", path)
+    # by-path: ...-usb-0:<port chain>:<config>.<interface>[-portN]; hub chains use dots (2.2).
+    # Strip only the trailing config.interface part, so this is idempotent on a socket name.
+    return re.sub(r"(-usb(?:v\d+)?-\d+:[\d.]+):\d+\.\d+(-port\d+)?$", r"\1", path)
 
 
 def load_registry():
