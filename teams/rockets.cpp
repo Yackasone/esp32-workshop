@@ -1,26 +1,18 @@
 // board: 1
-// 02 Traffic light: three LEDs, one at a time.
-// Wiring: RED, YELLOW, GREEN pins, each -> 220 ohm -> LED -> GND.
+// 03 Button: press to light the LED.
+// Wiring: button across the breadboard's middle gap.
+//         One leg -> BUTTON pin, the opposite leg -> GND. No resistor needed:
+//         INPUT_PULLUP turns on a resistor inside the chip that holds the pin HIGH.
 #include "workshop.h"
 
 void setup() {
     pinMode(RED, OUTPUT);
-    pinMode(YELLOW, OUTPUT);
-    pinMode(GREEN, OUTPUT);
-}
-
-void show(int pin, int ms) {
-    digitalWrite(RED, LOW);
-    digitalWrite(YELLOW, LOW);
-    digitalWrite(GREEN, LOW);
-    digitalWrite(pin, HIGH);
-    printf("light on pin %d for %d ms\n", pin, ms);
-    delay(ms);
+    pinMode(BUTTON, INPUT_PULLUP);
 }
 
 void loop() {
-    show(GREEN, 3000);
-    show(YELLOW, 1000);
-    show(RED, 3000);
-    // Try: add the UK "red + yellow together" step before green.
+    bool pressed = digitalRead(BUTTON) == LOW;  // pressing connects the pin to GND
+    digitalWrite(RED, pressed ? HIGH : LOW);
+    delay(10);
+    // Try: make each press TOGGLE the LED instead (hint: remember the last state).
 }
