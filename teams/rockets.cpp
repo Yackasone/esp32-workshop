@@ -1,16 +1,26 @@
 // board: 1
-// 01 Blink: one LED on and off.
-// Wiring: RED pin -> 220 ohm resistor -> LED long leg; LED short leg -> GND.
+// 02 Traffic light: three LEDs, one at a time.
+// Wiring: RED, YELLOW, GREEN pins, each -> 220 ohm -> LED -> GND.
 #include "workshop.h"
 
 void setup() {
     pinMode(RED, OUTPUT);
+    pinMode(YELLOW, OUTPUT);
+    pinMode(GREEN, OUTPUT);
+}
+
+void show(int pin, int ms) {
+    digitalWrite(RED, LOW);
+    digitalWrite(YELLOW, LOW);
+    digitalWrite(GREEN, LOW);
+    digitalWrite(pin, HIGH);
+    printf("light on pin %d for %d ms\n", pin, ms);
+    delay(ms);
 }
 
 void loop() {
-    digitalWrite(RED, HIGH);
-    delay(500);
-    digitalWrite(RED, LOW);
-    delay(500);
-    // Try: make it blink faster. What's the fastest blink you can still see?
+    show(GREEN, 3000);
+    show(YELLOW, 1000);
+    show(RED, 3000);
+    // Try: add the UK "red + yellow together" step before green.
 }
