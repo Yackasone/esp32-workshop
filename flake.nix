@@ -8,7 +8,7 @@
     in {
       # `nix develop`: idf.py + esptool for esp32 / s2 / s3 / c3 / c6.
       devShells.${system}.default = pkgs.mkShell {
-        packages = [ esp-dev.packages.${system}.esp-idf-full pkgs.util-linux ];
+        packages = [ esp-dev.packages.${system}.esp-idf-full pkgs.util-linux pkgs.bubblewrap ];
       };
     };
 }
