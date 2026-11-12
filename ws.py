@@ -53,8 +53,25 @@ def say(msg, color=""):
     print(f"{color}{msg}{OFF if color else ''}", flush=True)
 
 
+# CI: student-facing failures are also collected here, one section per sketch, for the
+# build-hint job that explains them on the pull request.
+ERRORS_FILE = os.environ.get("WS_ERRORS_FILE")
+CURRENT = {"name": None, "written": set()}
+
+
+def record(text):
+    if not ERRORS_FILE or not CURRENT["name"]:
+        return
+    with open(ERRORS_FILE, "a") as f:
+        if CURRENT["name"] not in CURRENT["written"]:
+            f.write(f"### {CURRENT['name']}\n")
+            CURRENT["written"].add(CURRENT["name"])
+        f.write(text.rstrip() + "\n")
+
+
 def die(msg):
     say(f"✗ {msg}", RED)
+    record(msg)
     sys.exit(1)
 
 
@@ -190,10 +207,16 @@ def resolve_sketch(name):
         f"  Examples: {', '.join(p.stem for p in sorted((HERE / 'examples').glob('*.cpp')))}")
 
 
-def stage_sketch(src):
+def stage_sketch(src, display=None):
     """Copy the sketch into main/sketch.cpp, only rewriting it if it changed (keeps builds incremental).
-    #line makes compiler errors point at the student's own file and line numbers."""
-    text = (f'#line 1 "{src}"\n' + src.read_text() +
+    #line makes compiler errors point at the student's own file and line numbers, named as the
+    student knows it (teams/rockets.cpp), not where it sits on the laptop."""
+    if display is None:
+        try:
+            display = src.resolve().relative_to(HERE)
+        except ValueError:
+            display = src
+    text = (f'#line 1 "{display}"\n' + src.read_text() +
             f'\n// ---- added by ws ----\nconst char* sketch_name() {{ return "{src.stem}"; }}\n')
     if not SKETCH.exists() or SKETCH.read_text() != text:
         SKETCH.write_text(text)
@@ -215,8 +238,13 @@ def build(target):
     if r.returncode != 0:
         out = r.stdout + r.stderr
         # Show the compiler's error lines first, then the tail, so students see their mistake.
-        errs = [l for l in out.splitlines() if re.search(r"(error|warning):", l) and "ninja" not in l]
-        say("\n".join(errs[:30]) or out[-3000:])
+        # Keep GCC's diagnostics plus its source excerpt ("   12 |   code" and the ^ line under it).
+        errs = [l for l in out.splitlines()
+                if (re.search(r"(error|warning|note):", l) and "ninja" not in l)
+                or re.match(r"^\s*\d*\s+\|", l)]
+        excerpt = ("\n".join(errs[:60]) or out[-3000:]).replace(str(HERE) + "/", "")
+        say(excerpt)
+        record(excerpt)
         die("Build failed: fix the first error above (file:line:column), then flash again.")
     return bdir
 
@@ -254,7 +282,7 @@ def board_from_header(src):
     return m.group(1) if m else None
 
 
-def build_and_flash(sketch_name, board):
+def build_and_flash(sketch_name, board, display=None):
     src = resolve_sketch(sketch_name)
     target = board_target(board, fresh=True)
     say(f"{BOLD}▶ {src.stem} → board {board[0]} ({target}){OFF}")
@@ -266,7 +294,7 @@ def build_and_flash(sketch_name, board):
         except BlockingIOError:
             say("Another team is flashing, waiting for them…", YELLOW)
             fcntl.flock(lk, fcntl.LOCK_EX)
-        stage_sketch(src)
+        stage_sketch(src, display)
         bdir = build(target)
         flash(board, bdir, target)
     return bdir
@@ -395,6 +423,7 @@ def cmd_ci(args):
     failed = []
     for src in sketches:
         say(f"\n{BOLD}════ {src.relative_to(HERE)} ════{OFF}")
+        CURRENT["name"] = str(src.relative_to(HERE))
         try:
             num = board_from_header(src)
             if num is None:
@@ -453,13 +482,14 @@ def cmd_ci_pr(args):
     failed = []
     for src in sketches:
         say(f"\n{BOLD}════ teams/{src.name} ════{OFF}")
+        CURRENT["name"] = f"teams/{src.name}"
         try:
             check_untrusted(src)
             num = board_from_header(src)
             if num is None:
                 die(f"{src.name} has no board line. Add  // board: 3  (your board number) at the top.")
             board = pick_board(num)
-            build_and_flash(str(src), board)
+            build_and_flash(str(src), board, f"teams/{src.name}")
             capture(board)
         except SystemExit:
             failed.append(src.name)
