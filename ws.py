@@ -486,7 +486,13 @@ def cmd_ci_pr(args):
     git = ["git", "-C", str(HERE)]
     changed = subprocess.run(git + ["diff", "--name-only", f"{base}...{head}"],
                              capture_output=True, text=True, check=True).stdout.split()
-    others = [f for f in changed if not re.fullmatch(r"teams/[A-Za-z0-9_-]+\.cpp", f)]
+    good = re.compile(r"teams/[A-Za-z0-9_-]+\.cpp")
+    # A file in teams/ with the wrong name is a student mistake (rockets.ccp, Rockets.CPP.txt,
+    # "my team.cpp"): fail with an explanation instead of silently skipping it.
+    misnamed = [f for f in changed if f.startswith("teams/") and not good.fullmatch(f)
+                and Path(f).name != ".gitkeep"
+                and subprocess.run(git + ["cat-file", "-e", f"{head}:{f}"]).returncode == 0]
+    others = [f for f in changed if not f.startswith("teams/")]
     if others:
         say(f"Note: only teams/*.cpp files are used from a pull request; ignoring {', '.join(others)}",
             YELLOW)
@@ -502,10 +508,18 @@ def cmd_ci_pr(args):
         dst = stage / Path(f).name
         dst.write_bytes(r.stdout[:100_000])
         sketches.append(dst)
-    if not sketches:
+    failed = []
+    for f in misnamed:
+        CURRENT["name"] = f
+        say(f"\n{BOLD}════ {f} ════{OFF}")
+        try:
+            die(f"{f}: team files must be named teams/<name>.cpp, using only letters, digits, - and _ "
+                f"(for example teams/rockets.cpp). Rename this file.")
+        except SystemExit:
+            failed.append(Path(f).name)
+    if not sketches and not misnamed:
         say("No team sketches changed in this pull request: nothing to flash.")
         return
-    failed = []
     for src in sketches:
         say(f"\n{BOLD}════ teams/{src.name} ════{OFF}")
         CURRENT["name"] = f"teams/{src.name}"

@@ -14,7 +14,7 @@ name: Flash my board
 on:
   pull_request_target:
     types: [opened, synchronize, reopened]
-    paths: ["teams/*.cpp"]
+    paths: ["teams/**"]   # any teams/ change, so a misnamed file (rockets.ccp) gets an explanation
   push:
     branches: [main]
     paths: ["teams/*.cpp"]
