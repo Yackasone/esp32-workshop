@@ -112,11 +112,24 @@ def serial_ports():
     return ports
 
 
+def socket_of(path):
+    """The physical USB socket in a by-path name. Drivers name the same socket differently
+    (CP2102: ...usb-0:4:1.0-port0, CH343/native USB: ...usb-0:4:1.0), so board numbers key on
+    ...usb-0:4 and stay with the socket whichever board is plugged into it."""
+    return re.sub(r":\d+\.\d+(-port\d+)?$", "", path)
+
+
 def load_registry():
     try:
-        return json.loads(REGISTRY.read_text())
+        reg = json.loads(REGISTRY.read_text())
     except (OSError, ValueError):
         return {"numbers": {}, "chips": {}}
+    numbers = {}
+    for path, n in sorted(reg.get("numbers", {}).items(), key=lambda kv: kv[1]):
+        numbers.setdefault(socket_of(path), n)  # older registries: keep the lowest number
+    reg["numbers"] = numbers
+    reg.setdefault("chips", {})
+    return reg
 
 
 def save_registry(reg):
@@ -148,14 +161,15 @@ def boards(probe=True):
     for path, (dev, native) in sorted(ports.items(), key=lambda kv: kv[1][1] is not None):
         if native is not None and any(i and i.get("mac") == native for *_, i in found):
             continue
-        if path not in reg["numbers"]:
-            reg["numbers"][path] = max(reg["numbers"].values(), default=0) + 1
+        sock = socket_of(path)
+        if sock not in reg["numbers"]:
+            reg["numbers"][sock] = max(reg["numbers"].values(), default=0) + 1
         info = reg["chips"].get(path)
         if probe or info is None:
             new, _ = detect_chip(dev)
             if new:
                 reg["chips"][path] = info = new
-        found.append((reg["numbers"][path], path, dev, info))
+        found.append((reg["numbers"][sock], path, dev, info))
     save_registry(reg)
     return sorted(found)
 
