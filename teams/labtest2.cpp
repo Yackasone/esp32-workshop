@@ -8,7 +8,7 @@ void setup() {
     pinMode(YELLOW, OUTPUT);
     pinMode(GREEN, OUTPUT);
     pinMode(BUTTON, INPUT_PULLUP);
-    printf("Hello from lab test board 2! Pins: RED=%d YELLOW=%d GREEN=%d BUTTON=%d BUZZER=%d KNOB=%d\n",
+    printf("Hello from lab-test board 2! Pins: RED=%d YELLOW=%d GREEN=%d BUTTON=%d BUZZER=%d KNOB=%d\n",
            RED, YELLOW, GREEN, BUTTON, BUZZER, KNOB);
 }
 
