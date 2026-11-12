@@ -30,6 +30,7 @@ permissions:
 
 env:
   WS_SANDBOX: "1"
+  GIT_TERMINAL_PROMPT: "0"   # never hang on a password prompt
 
 # No `concurrency:` on purpose: it cancels queued runs. The single runner already runs
 # jobs one at a time, and ws's lock guards the boards.
@@ -50,7 +51,8 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          git fetch --no-tags origin "+refs/pull/$PR/head:refs/remotes/pr/$PR"
+          # Public repo: anonymous fetch, so no token sits in .git/config where sandboxed code can read it.
+          timeout 120 git fetch --no-tags origin "+refs/pull/$PR/head:refs/remotes/pr/$PR"
           ./ws ci-pr "$BASE" "$HEAD"
       - name: Build and flash (push to main)
         if: github.event_name == 'push'
