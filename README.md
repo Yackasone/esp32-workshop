@@ -50,8 +50,13 @@ API: `pinMode`, `digitalWrite`, `digitalRead`, `analogWrite` (0-255), `analogRea
 ## Instructor: the lab laptop
 Needs Nix (`nix develop` gives ESP-IDF 5.5) and the boards on a hub (S3/C6: use the UART port).
 ```sh
-./ws doctor && ./ws flash-all 00_hello && ./ws boards   # label each socket with its number
+./ws doctor
+./ws renumber               # once, with every board plugged in: numbers 1, 2, 3… by USB socket
+./ws flash-all 00_hello     # every board walks its LEDs and prints its pins
 ```
+Tape each number next to its socket. Numbers belong to sockets (kept in
+`~/.cache/esp32-workshop/boards.json`), so a replacement board in the same socket keeps the team's
+number, whatever chip it is.
 Runner, for the session only (runs as you, so stop it afterwards):
 ```sh
 mkdir -p ~/esp32-lab-runner && cd ~/esp32-lab-runner

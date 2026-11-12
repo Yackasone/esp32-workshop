@@ -2,6 +2,7 @@
 
 Run through ./ws (it enters the `.#esp` Nix shell). Commands:
   ws boards                     list connected boards with their number and chip
+  ws renumber                   forget old numbers; number every plugged-in board 1, 2, 3… by socket
   ws new <team> [example]       start teams/<team>.cpp from an example (default 01_blink)
   ws flash <sketch> [board]     build + flash; <sketch> = team name, example name or a .cpp path
   ws run <sketch> [board]       flash, then open the serial monitor (Ctrl+] to quit)
@@ -112,11 +113,24 @@ def serial_ports():
     return ports
 
 
+def socket_of(path):
+    """The physical USB socket in a by-path name. Drivers name the same socket differently
+    (CP2102: ...usb-0:4:1.0-port0, CH343/native USB: ...usb-0:4:1.0), so board numbers key on
+    ...usb-0:4 and stay with the socket whichever board is plugged into it."""
+    return re.sub(r":\d+\.\d+(-port\d+)?$", "", path)
+
+
 def load_registry():
     try:
-        return json.loads(REGISTRY.read_text())
+        reg = json.loads(REGISTRY.read_text())
     except (OSError, ValueError):
         return {"numbers": {}, "chips": {}}
+    numbers = {}
+    for path, n in sorted(reg.get("numbers", {}).items(), key=lambda kv: kv[1]):
+        numbers.setdefault(socket_of(path), n)  # older registries: keep the lowest number
+    reg["numbers"] = numbers
+    reg.setdefault("chips", {})
+    return reg
 
 
 def save_registry(reg):
@@ -148,14 +162,15 @@ def boards(probe=True):
     for path, (dev, native) in sorted(ports.items(), key=lambda kv: kv[1][1] is not None):
         if native is not None and any(i and i.get("mac") == native for *_, i in found):
             continue
-        if path not in reg["numbers"]:
-            reg["numbers"][path] = max(reg["numbers"].values(), default=0) + 1
+        sock = socket_of(path)
+        if sock not in reg["numbers"]:
+            reg["numbers"][sock] = max(reg["numbers"].values(), default=0) + 1
         info = reg["chips"].get(path)
         if probe or info is None:
             new, _ = detect_chip(dev)
             if new:
                 reg["chips"][path] = info = new
-        found.append((reg["numbers"][path], path, dev, info))
+        found.append((reg["numbers"][sock], path, dev, info))
     save_registry(reg)
     return sorted(found)
 
@@ -325,6 +340,15 @@ def cmd_boards(_):
         chip = info["chip"] if info else f"{RED}no answer{OFF}"
         mac = info["mac"] if info else ""
         say(f"{n:>3}  {dev:14} {chip:10} {mac:18} {Path(path).name}")
+
+
+def cmd_renumber(_):
+    """One-time setup: plug every board in, run this, tape each number next to its socket."""
+    reg = load_registry()
+    reg["numbers"], reg["chips"] = {}, {}
+    save_registry(reg)
+    cmd_boards(None)
+    say("Tape these numbers next to the USB sockets. A number stays with its socket from now on.", YELLOW)
 
 
 def cmd_new(args):
@@ -551,7 +575,7 @@ def cmd_doctor(_):
 
 
 COMMANDS = {
-    "boards": cmd_boards, "new": cmd_new, "flash": cmd_flash,
+    "boards": cmd_boards, "renumber": cmd_renumber, "new": cmd_new, "flash": cmd_flash,
     "run": lambda a: cmd_flash(a, then_monitor=True), "monitor": cmd_monitor,
     "flash-all": cmd_flash_all, "prewarm": cmd_prewarm, "doctor": cmd_doctor,
     "capture": cmd_capture, "ci": cmd_ci, "ci-pr": cmd_ci_pr,
