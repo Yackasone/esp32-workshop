@@ -159,9 +159,11 @@ def pick_board(arg):
     die(f"No board '{arg}'.")
 
 
-def board_target(board):
+def board_target(board, fresh=False):
+    """Chip target for a board. fresh=True asks the chip again instead of trusting the cache:
+    the cache is per USB socket, and a different board may have been plugged in since."""
     n, path, dev, info = board
-    if not info or not info.get("target"):
+    if fresh or not info or not info.get("target"):
         info, out = detect_chip(dev)
         if not info:
             say(out[-1500:])
@@ -254,7 +256,7 @@ def board_from_header(src):
 
 def build_and_flash(sketch_name, board):
     src = resolve_sketch(sketch_name)
-    target = board_target(board)
+    target = board_target(board, fresh=True)
     say(f"{BOLD}▶ {src.stem} → board {board[0]} ({target}){OFF}")
     # One build tree per chip is shared by everyone, so build+flash happen under one lock:
     # nobody else's sketch can land in main/sketch.cpp between our build and our flash.
