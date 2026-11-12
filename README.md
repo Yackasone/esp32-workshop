@@ -1,0 +1,63 @@
+# ESP32 club workshop
+
+Write a little C++, push it, and watch it run on a real ESP32. The boards are plugged into the
+instructor's laptop, which builds and flashes every push with GitHub Actions.
+
+## Your first push (no wiring needed)
+1. Find your board's number (it's on the tape by its USB socket).
+2. Make your team's file: copy `examples/00_hello.cpp` to `teams/<team-name>.cpp`.
+3. Put your board number on the **first line**, and your names in the hello message:
+   ```cpp
+   // board: 3
+   ...
+   printf("Hello from Ana and Sam! ...
+   ```
+4. Commit and push. Open the **Actions** tab: your run builds, flashes your board, and the
+   last lines of the log are what your board printed.
+
+**With git:**
+```sh
+git clone https://github.com/<org>/<repo>.git
+cd <repo>
+git switch -c rockets                       # your own branch: no clashes with other teams
+cp examples/00_hello.cpp teams/rockets.cpp  # then edit it
+git add teams/rockets.cpp
+git commit -m "Say hello"
+git push -u origin rockets                  # later pushes: just  git push
+```
+**Without git:** press `.` on the repo page to open the browser editor (github.dev), create a
+branch from the branch name at the bottom left, add `teams/rockets.cpp`, then commit from the
+Source Control panel.
+
+## Exercises
+`examples/01_blink` … `07_launch`, from one LED to a launch countdown with abort. Each one opens
+with its wiring in a comment and ends with a **Try:** challenge. Copy the next one into your team
+file (keep the `// board:` line), push, and watch. Pin names (`RED`, `BUTTON`, `KNOB`…) work on
+every chip:
+
+| Name | ESP32-D | ESP32-S3 | ESP32-C6 |
+|---|---|---|---|
+| RED / YELLOW / GREEN | 25 / 26 / 27 | 7 / 15 / 16 | 21 / 22 / 23 |
+| BUTTON / BUZZER / KNOB | 33 / 32 / 34 | 6 / 5 / 4 | 2 / 1 / 0 |
+
+API: `pinMode`, `digitalWrite`, `digitalRead`, `analogWrite` (0-255), `analogRead` (0-4095),
+`tone`, `noTone`, `delay`, `millis`, `randomBetween`, `printf`. See `main/workshop.h`.
+
+## Instructor: the lab laptop
+Needs Nix (`nix develop` gives ESP-IDF 5.5) and the boards on a hub (S3/C6: use the UART port).
+```sh
+./ws doctor && ./ws flash-all 00_hello && ./ws boards   # label each socket with its number
+```
+Runner, for the session only (runs as you, so stop it afterwards):
+```sh
+mkdir -p ~/esp32-lab-runner && cd ~/esp32-lab-runner
+export RUNNER_ROOT=$PWD
+nix shell nixpkgs#github-runner -c config.sh --url https://github.com/<org>/<repo> \
+    --token <registration token> --labels esp32-lab --name lab-laptop --unattended --ephemeral=false
+nix shell nixpkgs#github-runner -c run.sh
+```
+Then Actions → "Flash my board" → Run workflow → sketch `prewarm`, so class-time builds take seconds.
+Afterwards: Ctrl+C the runner and remove it in Settings → Actions → Runners.
+
+Local commands still work (`./ws run 07_launch 3`, `./ws capture 3`); the shared lock makes them
+wait their turn with the runner.

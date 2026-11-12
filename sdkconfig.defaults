@@ -1,0 +1,11 @@
+# Shared by every chip; ws builds each target in build/<target> with its own sdkconfig.
+CONFIG_FREERTOS_HZ=1000
+# A loop() that never calls delay() must not trip the idle-task watchdog.
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=n
+# Quiet boot so students see their own printf() output.
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
+CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+# Any flash size works: the app is tiny. esptool writes the real size into the header when flashing.
+CONFIG_ESPTOOLPY_FLASHSIZE_2MB=y
+CONFIG_ESPTOOLPY_HEADER_FLASHSIZE_UPDATE=y

@@ -1,0 +1,40 @@
+# Push a change to teams/<you>.cpp and this flashes it to your board on the
+# instructor's laptop (a self-hosted runner with the boards plugged in), then shows
+# the board's serial output at the bottom of the log.
+name: Flash my board
+
+on:
+  push:
+    paths: ["teams/*.cpp"]
+  workflow_dispatch:
+    inputs:
+      sketch:
+        description: "Team or example name (e.g. rockets or 00_hello), or 'prewarm' to build everything once"
+        required: true
+      board:
+        description: "Board number (blank = the // board: line in the file)"
+        required: false
+
+# No `concurrency:` on purpose: it cancels queued runs. The single runner already runs
+# jobs one at a time, and ws's lock guards the boards.
+jobs:
+  flash:
+    runs-on: [self-hosted, esp32-lab]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false        # keep build/ so builds take seconds, not minutes
+          fetch-depth: 0      # ws ci diffs against the previous push
+      - name: Build and flash
+        if: github.event_name == 'push'
+        run: ./ws ci "${{ github.event.before }}" "${{ github.sha }}"
+      - name: Build and flash (manual)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SKETCH: ${{ inputs.sketch }}
+          BOARD: ${{ inputs.board }}
+        run: |
+          if [ "$SKETCH" = prewarm ]; then ./ws prewarm esp32 esp32s3 esp32c6; exit; fi
+          ./ws flash "$SKETCH" $BOARD
+          ./ws capture $BOARD
