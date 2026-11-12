@@ -11,6 +11,8 @@ Run through ./ws (it enters the `.#esp` Nix shell). Commands:
   ws doctor                     check permissions, services and boards
   ws capture [board] [seconds]  reset the board and print its serial output for a while (no keyboard)
   ws ci <before-sha> <sha>      GitHub Actions: flash every teams/*.cpp the push changed
+  ws ci-pr <base-sha> <head-sha> GitHub Actions: same for a pull request, using ONLY its teams/*.cpp
+                                files (never its tooling), built in a sandbox
 [board] = the number from `ws boards` (or a /dev path). It can be left out when the sketch has a
 `// board: 3` line, or when only one board is plugged in.
 
@@ -35,6 +37,9 @@ STATE.mkdir(parents=True, exist_ok=True)
 REGISTRY = STATE / "boards.json"
 LOCK = STATE / "lock"
 IN_CI = os.environ.get("GITHUB_ACTIONS") == "true"
+# Untrusted code (PRs from anyone) compiles inside bubblewrap: no network, and only the Nix store
+# and this checkout visible, so #include "/home/..." or .incbin can't read the laptop's files.
+SANDBOX = os.environ.get("WS_SANDBOX") == "1"
 SKETCH = HERE / "main" / "sketch.cpp"
 TARGETS = ["esp32", "esp32s3", "esp32c6", "esp32c3", "esp32s2"]
 CHIP_TO_TARGET = {"ESP32": "esp32", "ESP32-S3": "esp32s3", "ESP32-C6": "esp32c6",
@@ -196,6 +201,11 @@ def build(target):
     bdir = HERE / "build" / target
     cmd = ["idf.py", "-C", str(HERE), "-B", str(bdir), f"-DIDF_TARGET={target}",
            f"-DSDKCONFIG={bdir / 'sdkconfig'}", "build"]
+    if SANDBOX:
+        cmd = ["bwrap", "--unshare-all", "--die-with-parent", "--new-session",
+               "--ro-bind", "/nix", "/nix", "--ro-bind", "/bin", "/bin", "--ro-bind", "/usr", "/usr",
+               "--bind", str(HERE), str(HERE), "--dev", "/dev", "--proc", "/proc",
+               "--tmpfs", "/tmp", "--setenv", "HOME", "/tmp", "--chdir", str(HERE), "--"] + cmd
     first = not (bdir / "build.ninja").exists()
     if first:
         say(f"First build for {target}: about 1-3 minutes (later builds take seconds)…", YELLOW)
@@ -396,6 +406,65 @@ def cmd_ci(args):
         die(f"Failed: {', '.join(failed)}")
 
 
+ALLOWED_INCLUDES = {"workshop.h", "cstdio", "cstdlib", "cstdint", "cstring", "cmath", "cctype",
+                    "climits", "array", "algorithm", "stdio.h", "stdlib.h", "stdint.h", "string.h",
+                    "math.h", "ctype.h", "limits.h"}
+
+
+def check_untrusted(src):
+    """Readable refusals for things a workshop sketch never needs (the sandbox is the real fence)."""
+    text = src.read_text()
+    for inc in re.findall(r'^\s*#\s*include\s*[<"]([^>"]+)[>"]', text, re.M):
+        if inc not in ALLOWED_INCLUDES:
+            die(f"{src.name}: #include <{inc}> isn't allowed here. Use workshop.h (plus <cmath> etc.).")
+    if re.search(r"\b(asm|__asm__|__asm|incbin|_Pragma|#\s*pragma|#\s*embed)\b", text):
+        die(f"{src.name}: asm / pragma / embed aren't allowed in workshop sketches.")
+
+
+def cmd_ci_pr(args):
+    """Pull request: take only teams/*.cpp from the PR head; build with main's tooling, sandboxed."""
+    base, head = (args + ["", ""])[:2]
+    if not head:
+        die("Usage: ws ci-pr <base-sha> <head-sha>")
+    git = ["git", "-C", str(HERE)]
+    changed = subprocess.run(git + ["diff", "--name-only", f"{base}...{head}"],
+                             capture_output=True, text=True, check=True).stdout.split()
+    others = [f for f in changed if not re.fullmatch(r"teams/[A-Za-z0-9_-]+\.cpp", f)]
+    if others:
+        say(f"Note: only teams/*.cpp files are used from a pull request; ignoring {', '.join(others)}",
+            YELLOW)
+    stage = HERE / "build" / "pr"
+    stage.mkdir(parents=True, exist_ok=True)
+    sketches = []
+    for f in changed:
+        if not re.fullmatch(r"teams/[A-Za-z0-9_-]+\.cpp", f):
+            continue
+        r = subprocess.run(git + ["show", f"{head}:{f}"], capture_output=True)
+        if r.returncode != 0:
+            continue  # deleted in the PR
+        dst = stage / Path(f).name
+        dst.write_bytes(r.stdout[:100_000])
+        sketches.append(dst)
+    if not sketches:
+        say("No team sketches changed in this pull request: nothing to flash.")
+        return
+    failed = []
+    for src in sketches:
+        say(f"\n{BOLD}════ teams/{src.name} ════{OFF}")
+        try:
+            check_untrusted(src)
+            num = board_from_header(src)
+            if num is None:
+                die(f"{src.name} has no board line. Add  // board: 3  (your board number) at the top.")
+            board = pick_board(num)
+            build_and_flash(str(src), board)
+            capture(board)
+        except SystemExit:
+            failed.append(src.name)
+    if failed:
+        die(f"Failed: {', '.join(failed)}")
+
+
 def cmd_prewarm(args):
     targets = args or TARGETS
     examples = sorted((HERE / "examples").glob("*.cpp"))
@@ -441,7 +510,7 @@ COMMANDS = {
     "boards": cmd_boards, "new": cmd_new, "flash": cmd_flash,
     "run": lambda a: cmd_flash(a, then_monitor=True), "monitor": cmd_monitor,
     "flash-all": cmd_flash_all, "prewarm": cmd_prewarm, "doctor": cmd_doctor,
-    "capture": cmd_capture, "ci": cmd_ci,
+    "capture": cmd_capture, "ci": cmd_ci, "ci-pr": cmd_ci_pr,
 }
 
 if __name__ == "__main__":

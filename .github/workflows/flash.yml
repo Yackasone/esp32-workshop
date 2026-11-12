@@ -1,10 +1,20 @@
-# Push a change to teams/<you>.cpp and this flashes it to your board on the
-# instructor's laptop (a self-hosted runner with the boards plugged in), then shows
-# the board's serial output at the bottom of the log.
+# Open a pull request that adds or changes teams/<you>.cpp, and every push to it flashes
+# your board on the instructor's laptop (a self-hosted runner with the boards plugged in).
+# The board's serial output is at the bottom of the run's log.
+#
+# SECURITY (public repo + self-hosted runner): pull requests use `pull_request_target`, so
+# this workflow and all tooling (ws, CMake, workshop.h) always come from main, never from the
+# pull request. Only the PR's teams/*.cpp files are taken, and they compile inside a
+# bubblewrap sandbox (WS_SANDBOX=1) that can't see the laptop's files or the network.
+# Never add a `pull_request` trigger or check out the PR's head here.
 name: Flash my board
 
 on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths: ["teams/*.cpp"]
   push:
+    branches: [main]
     paths: ["teams/*.cpp"]
   workflow_dispatch:
     inputs:
@@ -15,6 +25,12 @@ on:
         description: "Board number (blank = the // board: line in the file)"
         required: false
 
+permissions:
+  contents: read
+
+env:
+  WS_SANDBOX: "1"
+
 # No `concurrency:` on purpose: it cancels queued runs. The single runner already runs
 # jobs one at a time, and ws's lock guards the boards.
 jobs:
@@ -22,11 +38,21 @@ jobs:
     runs-on: [self-hosted, esp32-lab]
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4   # main's code, also for pull requests
         with:
           clean: false        # keep build/ so builds take seconds, not minutes
-          fetch-depth: 0      # ws ci diffs against the previous push
-      - name: Build and flash
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build and flash (pull request)
+        if: github.event_name == 'pull_request_target'
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags origin "+refs/pull/$PR/head:refs/remotes/pr/$PR"
+          ./ws ci-pr "$BASE" "$HEAD"
+      - name: Build and flash (push to main)
         if: github.event_name == 'push'
         run: ./ws ci "${{ github.event.before }}" "${{ github.sha }}"
       - name: Build and flash (manual)

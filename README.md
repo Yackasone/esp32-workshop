@@ -3,31 +3,35 @@
 Write a little C++, push it, and watch it run on a real ESP32. The boards are plugged into the
 instructor's laptop, which builds and flashes every push with GitHub Actions.
 
-## Your first push (no wiring needed)
+## Your first pull request (no wiring needed)
 1. Find your board's number (it's on the tape by its USB socket).
-2. Make your team's file: copy `examples/00_hello.cpp` to `teams/<team-name>.cpp`.
+2. Make your team's file, `teams/<team-name>.cpp`, from `examples/00_hello.cpp`.
 3. Put your board number on the **first line**, and your names in the hello message:
    ```cpp
    // board: 3
    ...
    printf("Hello from Ana and Sam! ...
    ```
-4. Commit and push. Open the **Actions** tab: your run builds, flashes your board, and the
-   last lines of the log are what your board printed.
+4. Open a **pull request**. Its **Checks** tab builds your code, flashes your board, and ends with
+   what your board printed. Every later push to the same pull request flashes again.
+
+**In the browser (easiest):** on the repo page open `teams/`, then **Add file → Create new file**,
+name it `rockets.cpp`, paste the example, and **Commit changes… → Propose changes → Create pull
+request**. GitHub makes your fork for you. To change it later, open the file in *your* fork, edit
+it with the pencil icon, and commit to the same branch.
 
 **With git:**
 ```sh
-git clone https://github.com/<org>/<repo>.git
-cd <repo>
-git switch -c rockets                       # your own branch: no clashes with other teams
-cp examples/00_hello.cpp teams/rockets.cpp  # then edit it
+gh repo fork Yackasone/esp32-workshop --clone    # or Fork on the website, then git clone your fork
+cd esp32-workshop
+git switch -c rockets
+cp examples/00_hello.cpp teams/rockets.cpp       # then edit it
 git add teams/rockets.cpp
 git commit -m "Say hello"
-git push -u origin rockets                  # later pushes: just  git push
+git push -u origin rockets                       # then open the pull request on GitHub
 ```
-**Without git:** press `.` on the repo page to open the browser editor (github.dev), create a
-branch from the branch name at the bottom left, add `teams/rockets.cpp`, then commit from the
-Source Control panel.
+Only `teams/*.cpp` files from a pull request are used. The build runs with this repo's tooling
+in a sandbox, and the code can only include `workshop.h` and standard C headers.
 
 ## Exercises
 `examples/01_blink` … `07_launch`, from one LED to a launch countdown with abort. Each one opens
@@ -57,6 +61,9 @@ nix shell nixpkgs#github-runner -c config.sh --url https://github.com/<org>/<rep
 nix shell nixpkgs#github-runner -c run.sh
 ```
 Then Actions → "Flash my board" → Run workflow → sketch `prewarm`, so class-time builds take seconds.
+The repo is public: pull requests run main's workflow (`pull_request_target`) and compile only
+their `teams/*.cpp` inside bubblewrap, so a stranger's PR can flash a board but can't reach the
+laptop. Keep it that way: never add a `pull_request` trigger.
 Afterwards: Ctrl+C the runner and remove it in Settings → Actions → Runners.
 
 Local commands still work (`./ws run 07_launch 3`, `./ws capture 3`); the shared lock makes them
