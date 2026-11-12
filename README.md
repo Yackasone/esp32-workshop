@@ -36,13 +36,13 @@ in a sandbox, and the code can only include `workshop.h` and standard C headers.
 ## Exercises
 `examples/01_blink` … `07_launch`, from one LED to a launch countdown with abort. Each one opens
 with its wiring in a comment and ends with a **Try:** challenge. Copy the next one into your team
-file (keep the `// board:` line), push, and watch. Pin names (`RED`, `BUTTON`, `KNOB`…) work on
+file (keep the `// board:` line), push, and watch. Pin names (`RED`, `BUTTON`, `BUZZER`…) work on
 every chip:
 
 | Name | ESP32-D | ESP32-S3 | ESP32-C6 |
 |---|---|---|---|
 | RED / YELLOW / GREEN | 25 / 26 / 27 | 7 / 15 / 16 | 21 / 22 / 23 |
-| BUTTON / BUZZER / KNOB | 33 / 32 / 34 | 6 / 5 / 4 | 2 / 1 / 0 |
+| BUTTON / BUZZER | 33 / 32 | 6 / 5 | 2 / 1 |
 
 API: `pinMode`, `digitalWrite`, `digitalRead`, `analogWrite` (0-255), `analogRead` (0-4095),
 `tone`, `noTone`, `delay`, `millis`, `randomBetween`, `printf`. See `main/workshop.h`.
