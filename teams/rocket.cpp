@@ -1,4 +1,4 @@
-// board: 3
+// board: 4
 // 00 Hello: board self-test. Prints, then walks every workshop LED.
 // The instructor flashes this to every board before class (ws flash-all 00_hello).
 #include "workshop.h"
