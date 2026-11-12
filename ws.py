@@ -488,7 +488,19 @@ def cmd_ci_pr(args):
             num = board_from_header(src)
             if num is None:
                 die(f"{src.name} has no board line. Add  // board: 3  (your board number) at the top.")
-            board = pick_board(num)
+            CURRENT["name"], name = None, CURRENT["name"]  # board lookup problems aren't the student's
+            try:
+                board = pick_board(num)
+            except SystemExit:
+                board = None
+            CURRENT["name"] = name
+            if board is None:
+                # Still check the code, so the team gets build feedback while the board is sorted out.
+                with open(LOCK, "w") as lk:
+                    fcntl.flock(lk, fcntl.LOCK_EX)
+                    stage_sketch(src, name)
+                    build("esp32")
+                die(f"Your code compiles, but board {num} isn't connected right now: tell the instructor.")
             build_and_flash(str(src), board, f"teams/{src.name}")
             capture(board)
         except SystemExit:
