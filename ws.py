@@ -2,6 +2,7 @@
 
 Run through ./ws (it enters the `.#esp` Nix shell). Commands:
   ws boards                     list connected boards with their number and chip
+  ws renumber                   forget old numbers; number every plugged-in board 1, 2, 3… by socket
   ws new <team> [example]       start teams/<team>.cpp from an example (default 01_blink)
   ws flash <sketch> [board]     build + flash; <sketch> = team name, example name or a .cpp path
   ws run <sketch> [board]       flash, then open the serial monitor (Ctrl+] to quit)
@@ -341,6 +342,15 @@ def cmd_boards(_):
         say(f"{n:>3}  {dev:14} {chip:10} {mac:18} {Path(path).name}")
 
 
+def cmd_renumber(_):
+    """One-time setup: plug every board in, run this, tape each number next to its socket."""
+    reg = load_registry()
+    reg["numbers"], reg["chips"] = {}, {}
+    save_registry(reg)
+    cmd_boards(None)
+    say("Tape these numbers next to the USB sockets. A number stays with its socket from now on.", YELLOW)
+
+
 def cmd_new(args):
     if not args:
         die("Usage: ws new <team> [example] [board]")
@@ -565,7 +575,7 @@ def cmd_doctor(_):
 
 
 COMMANDS = {
-    "boards": cmd_boards, "new": cmd_new, "flash": cmd_flash,
+    "boards": cmd_boards, "renumber": cmd_renumber, "new": cmd_new, "flash": cmd_flash,
     "run": lambda a: cmd_flash(a, then_monitor=True), "monitor": cmd_monitor,
     "flash-all": cmd_flash_all, "prewarm": cmd_prewarm, "doctor": cmd_doctor,
     "capture": cmd_capture, "ci": cmd_ci, "ci-pr": cmd_ci_pr,
